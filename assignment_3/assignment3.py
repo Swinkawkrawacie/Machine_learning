@@ -10,11 +10,6 @@ class DenseLayer:
                  activation_function: str):
         self.activ_name = activation_function
         self.n_in = n_in
-        # self.activ_func = self.get_activ_func(activation_function)
-        # self.d_activ_func = self.get_d_activ_func(activation_function)
-        # if not activation_function=='softmax':
-        #     self.activ_func = np.vectorize(self.activ_func)
-        #     self.d_activ_func = np.vectorize(self.d_activ_func)
         self.weights = 2*np.random.random((n_neu, n_in+1))-1
 
     @cached_property
