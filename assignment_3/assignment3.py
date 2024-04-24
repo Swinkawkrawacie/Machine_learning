@@ -2,6 +2,7 @@ import numpy as np
 from functools import cached_property
 from keras.datasets import mnist
 from keras.utils import to_categorical
+from _collections_abc import Iterable
 
 class DenseLayer:
     def __init__(self,
@@ -56,6 +57,13 @@ class NeuralNetwork:
                   n_in,
                   n_neu: int,
                   activation_function: str):
+        '''
+        Add layer to the model
+
+        @n_in: (int) number of input neurons for this layer
+        @n_neu: (int) number of output neurons for this layer
+        @activation_function: (str) name of the activation function
+        '''
         self.layers.append(DenseLayer(n_in, n_neu, activation_function))
 
     @cached_property
@@ -70,7 +78,19 @@ class NeuralNetwork:
                           'categorical_crossentropy': lambda x: sum(x[0])*x[1]-x[0]}
         return loss_func_dict.get(self.loss_name)
 
-    def fit(self, train_features: np.array, train_targets: np.array, epochs: int, learning_rate, val=None):
+    def fit(self, train_features: np.array, train_targets: np.array, epochs: int, learning_rate: float, val: Iterable[np.array] =None):
+        '''
+        Fit model to the given data
+
+        @train_features: (np.array) array to fit the model to
+        @train_targets: (np.array) array to verify the fit
+        @epochs: (int) number of epochs for a model to be trained for
+        @learning_rate: (float) number defining learning rate
+        @val: (Iterable[np.array]) validation set in the form (validation_features, validation_targets),
+                                    - model doesn't learn based on this [parameter], 
+                                    default None (meaning the feature is not used)
+        '''
+
         self.loss = []
         self.acc = []
         train_features = train_features.copy()
@@ -109,6 +129,12 @@ class NeuralNetwork:
             
 
     def predict(self, test_features: np.array, test_targets: np.array):
+        '''
+        Calculate loss and accuracy for prediction based on given test data
+
+        @test_features: (np.array) array to use the model on
+        @test_targets: (np.array) array with true values to check loss and accuracy
+        '''
         test_acc = []
         test = test_features.copy()
         self.test_loss = 0
@@ -121,18 +147,35 @@ class NeuralNetwork:
             self.test_loss += self.loss_func((target,layer_out))
         self.test_acc = np.mean(test_acc)
         self.test_loss /= test.shape[0]
-        return layer_out
+        # return layer_out
+
+def create_neu_network(neu_list: Iterable[int], activ_func_list: Iterable[str], loss_func: str = 'mse'):
+    '''
+    Create NeuralNetwork object from given parameters:
+
+    @neu_list: (Iterable[int]) collection of neuron numbers in the order of layers
+    @activ_func_list: (Iterable[str]) collection of activation functions in the order of layers
+    @loss: (str) name of the loss function, default 'mse'
+
+    return NeuralNetwork object with specified layers
+    '''
+    if len(neu_list)-1 != len(activ_func_list):
+        raise ValueError(f'Incompatible list lengths: neu_list ({len(neu_list)}) and activ_func_list ({len(activ_func_list)})')
+    neu_net = NeuralNetwork(loss_function=loss_func)
+    for i in range(len(neu_list)-1):
+        neu_net.add_layer(neu_list[i], neu_list[i+1], activ_func_list[i])
+    return neu_net
 
 if __name__ == "__main__":
 
     (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
-    train_images = train_images.reshape((60000, 28 * 28))
+    train_images = train_images.reshape((60000, 28 * 28))[:1000,]
     train_images = train_images.astype('float32') / 255
-    test_images = test_images.reshape((10000, 28 * 28))
+    test_images = test_images.reshape((10000, 28 * 28))[:1000,]
     test_images = test_images.astype('float32') / 255
 
-    train_labels = to_categorical(train_labels)
-    test_labels = to_categorical(test_labels)
+    train_labels = to_categorical(train_labels[:1000,])
+    test_labels = to_categorical(test_labels[:1000,])
 
     first_network = NeuralNetwork()
     first_network.add_layer(28*28, 128,'relu')
