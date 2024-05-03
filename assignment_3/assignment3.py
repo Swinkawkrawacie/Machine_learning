@@ -11,12 +11,12 @@ class DenseLayer:
                  activation_function: str):
         self.activ_name = activation_function
         self.n_in = n_in
+        self.n_out = n_neu
         self.weights = 2*np.random.random((n_neu, n_in+1))-1
 
     @cached_property
     def activ_func(self):
         activ_func_dict = {'sigmoid': lambda x: np.exp(x) / (1 + np.exp(x)),
-                           'softplus': lambda x: np.log(np.exp(x) + 1),
                            'exponential': lambda x: np.exp(x),
                            'relu': lambda x: max((x,0)),
                            'softmax': lambda x: np.asarray([np.exp(i) / sum(np.exp(x)) for i in x])}
@@ -28,7 +28,6 @@ class DenseLayer:
     @cached_property
     def d_activ_func(self):
         activ_func_dict = {'sigmoid': lambda x: np.exp(x) / (1 + np.exp(x))**2,
-                           'softplus': lambda x: np.exp(x)/(np.exp(x) + 1),
                            'exponential': lambda x: np.exp(x),
                            'relu': lambda x: (x>0)*1}
         func = activ_func_dict.get(self.activ_name)
@@ -36,6 +35,13 @@ class DenseLayer:
             func = np.vectorize(func)
         return func
     
+    def init_weights(self):
+        if self.activ_name in ('sigmoid', 'relu'):
+            w = np.random.normal(0, 2/(self.n_in+self.n_out), size=(self.n_out, self.n_in))
+        else:
+            w = np.sqrt(6)*(2*np.random.random((self.n_out, self.n_in))-1)/np.sqrt(self.n_out+self.n_in)
+        self.weights = np.c_[np.zeros(self.n_out), w]
+
     def forward_prop(self, input):
         self.input = np.vstack((1, input))
         self.out =  self.weights @ self.input
@@ -100,7 +106,7 @@ class NeuralNetwork:
             self.val_acc = []
         for i in range(epochs):
             loss=0
-            acc = []
+            # acc = []
             order = np.arange(train_features.shape[0])
             np.random.shuffle(order)
             train_features = train_features[order,:]
@@ -111,21 +117,26 @@ class NeuralNetwork:
                 for layer in self.layers:
                     layer_out = layer.forward_prop(layer_out)
                 targets = train_targets[j,:].reshape(train_targets[j,:].size,1)
-                acc.append(np.argmax(targets)==np.argmax(layer_out))
+                # acc.append(np.argmax(targets)==np.argmax(layer_out))
                 loss += self.loss_func((targets,layer_out))
 
                 dlda = self.d_loss_func((targets,layer_out))
                 for layer in self.layers[::-1]:
                     dlda = layer.back_prop(layer.out, dlda, learning_rate)[1:]
-            self.loss.append(loss/train_features.shape[0])
-            self.acc.append(np.mean(acc))
-            if val:
-                self.predict(val[0], val[1])
-                self.val_loss.append(self.test_loss)
-                self.val_acc.append(self.test_acc)
-            print(f'epoch: {i+1}, loss: {self.loss[-1]}, acc: {self.acc[-1]}')
-            if val:
-                print(f'val_loss: {self.val_loss[-1]}, val_acc: {self.val_acc[-1]}')
+            # self.loss.append(loss/train_features.shape[0])
+            # self.acc.append(np.mean(acc))
+            self.set_learning_state(train_features, train_targets, val, epoch=i)
+    
+    def set_learning_state(self, x_train, y_train, val, epoch):
+        self.predict(x_train, y_train)
+        self.loss.append(self.test_loss)
+        self.acc.append(self.test_acc)
+        print(f'epoch: {epoch+1}, loss: {self.loss[-1]}, acc: {self.acc[-1]}')
+        if val:
+            self.predict(val[0], val[1])
+            self.val_loss.append(self.test_loss)
+            self.val_acc.append(self.test_acc)
+            print(f'val_loss: {self.val_loss[-1]}, val_acc: {self.val_acc[-1]}')
             
 
     def predict(self, test_features: np.array, test_targets: np.array):
@@ -166,25 +177,25 @@ def create_neu_network(neu_list: Iterable[int], activ_func_list: Iterable[str], 
         neu_net.add_layer(neu_list[i], neu_list[i+1], activ_func_list[i])
     return neu_net
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
-    train_images = train_images.reshape((60000, 28 * 28))[:1000,]
-    train_images = train_images.astype('float32') / 255
-    test_images = test_images.reshape((10000, 28 * 28))[:1000,]
-    test_images = test_images.astype('float32') / 255
+#     (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+#     train_images = train_images.reshape((60000, 28 * 28))[:1000,]
+#     train_images = train_images.astype('float32') / 255
+#     test_images = test_images.reshape((10000, 28 * 28))[:1000,]
+#     test_images = test_images.astype('float32') / 255
 
-    train_labels = to_categorical(train_labels[:1000,])
-    test_labels = to_categorical(test_labels[:1000,])
+#     train_labels = to_categorical(train_labels[:1000,])
+#     test_labels = to_categorical(test_labels[:1000,])
 
-    first_network = NeuralNetwork()
-    first_network.add_layer(28*28, 128,'relu')
-    # first_network.add_layer(128, 64,'relu')
-    # first_network.add_layer(64, 32,'sigmoid')
-    first_network.add_layer(128, 10,'softmax')
+#     first_network = NeuralNetwork()
+#     first_network.add_layer(28*28, 128,'relu')
+#     # first_network.add_layer(128, 64,'relu')
+#     # first_network.add_layer(64, 32,'sigmoid')
+#     first_network.add_layer(128, 10,'softmax')
 
-    #lista liczb neuronów i żeby samo się utworzyło
-    #zbiór obserwacji podzielić na wsady (2**... czy po sto), po każdej liczymy gradient ale wagi updatujemy na koniec, rozmiar batcha żeby się dało podać (ostatni batch to to zostało jak zbiór się nie dZieli)
-    #funkcja aktywacji czy funkcja kosztu do wyboru
-    first_network.fit(train_images, train_labels, epochs=10, learning_rate=.01, val=(test_images, test_labels))
-    predicted = first_network.predict(test_images, test_labels)
+#     #lista liczb neuronów i żeby samo się utworzyło
+#     #zbiór obserwacji podzielić na wsady (2**... czy po sto), po każdej liczymy gradient ale wagi updatujemy na koniec, rozmiar batcha żeby się dało podać (ostatni batch to to zostało jak zbiór się nie dZieli)
+#     #funkcja aktywacji czy funkcja kosztu do wyboru
+#     first_network.fit(train_images, train_labels, epochs=10, learning_rate=.01, val=(test_images, test_labels))
+#     predicted = first_network.predict(test_images, test_labels)
